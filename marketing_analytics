@@ -1,0 +1,50 @@
+with fb_metr as (
+select *
+from facebook_ads_basic_daily fabd 
+left join facebook_adset fa on fabd.adset_id = fa.adset_id 
+left join facebook_campaign fc on fabd.campaign_id = fc.campaign_id
+),
+fb_and_ggl_metr as (
+select 
+ad_date
+, url_parameters
+, coalesce(spend, 0) as spend
+, coalesce(impressions, 0) as impressions
+, coalesce(reach, 0) as reach
+, coalesce(clicks, 0) as clicks
+, coalesce(leads, 0) as leads
+, coalesce(value, 0) as value 
+from fb_metr
+union all
+select ad_date
+, url_parameters
+, coalesce(spend, 0) as spend
+, coalesce(impressions, 0) as impressions
+, coalesce(reach, 0) as reach
+, coalesce(clicks, 0) as clicks
+, coalesce(leads, 0) as leads
+, coalesce(value, 0) as value
+from google_ads_basic_daily gabd 
+)
+select ad_date,
+case when lower(substring(url_parameters,49)) = 'nan' then null
+else lower(substring(url_parameters,49))
+end as utm_campaign,
+sum(spend) sum_spend,
+sum(impressions) sum_impr,
+sum(clicks) sum_clicks,
+sum(value) sum_value,
+case when sum(impressions) = 0 then null
+else (sum(clicks)/sum(impressions)) * 100
+end as CTR,
+case when sum(clicks) = 0 then null
+else sum(spend)::numeric/sum(clicks)
+end as CPC,
+case when sum(impressions) = 0 then null
+else (sum(spend)::numeric/sum(impressions))*1000
+end as CPM,
+case when sum(spend) = 0 then null
+else (sum(value)::numeric-sum(spend))/sum(spend)::numeric
+end as ROMI
+from fb_and_ggl_metr
+group by ad_date, utm_campaign
